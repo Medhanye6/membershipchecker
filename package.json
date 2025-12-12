@@ -1,0 +1,14 @@
+{
+  "name": "mesob-membership-api",
+  "version": "1.0.0",
+  "description": "Secure API for Telegram Mini App channel membership check on Vercel.",
+  "main": "api/check-membership.js",
+  "scripts": {
+    "start": "node api/check-membership.js"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.1",
+    "crypto": "^1.0.1",
+    "querystring": "^0.2.1"
+  }
+}
