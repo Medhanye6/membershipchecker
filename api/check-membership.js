@@ -1,104 +1,49 @@
-const crypto = require('crypto');
-const querystring = require('querystring');
+// Create a new file: member-checker/api/check.js
+const { Telegraf } = require('telegraf');
 const fetch = require('node-fetch');
 
-// 1. Telegram Bot Token is loaded from Vercel Environment Variables
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const WEB_APP_SECRET = 'WebAppData';
-const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+// Replace with your bot token and channel username
+const BOT_TOKEN = '8262401976:AAGh3XZ1HDrzRn25xr9yZNJrp04LqfQ2WJE';
+const CHANNEL_USERNAME = '@MesobEarn';
 
-// --- Security Function: Validate Telegram initData ---
-// This prevents unauthorized users from calling your API.
-function validateInitData(initData) {
-    if (!BOT_TOKEN) {
-        console.error("BOT_TOKEN is not set.");
-        return false;
+module.exports = async (req, res) => {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  try {
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
     }
     
-    // Convert the initData string into key-value pairs
-    const params = new URLSearchParams(initData);
-    const hash = params.get('hash');
-    params.delete('hash');
-
-    // Sort all key=value pairs alphabetically and join them with \n
-    const dataCheckString = Array.from(params.entries())
-        .map(([key, value]) => `${key}=${value}`)
-        .sort()
-        .join('\n');
-
-    // Create a secret key using HMAC-SHA256 based on the bot token
-    const secretKey = crypto.createHmac('sha256', WEB_APP_SECRET)
-        .update(BOT_TOKEN)
-        .digest();
-
-    // Calculate the HMAC-SHA256 hash for the data check string
-    const calculatedHash = crypto.createHmac('sha256', secretKey)
-        .update(dataCheckString)
-        .digest('hex');
-
-    // Compare the calculated hash with the hash received from Telegram
-    return calculatedHash === hash;
-}
-
-// --- Bot API Function: Check Membership ---
-async function checkMembership(channelUsername, userId) {
-    // The chat_id must start with '@' or be a numerical ID
-    const chatId = channelUsername.startsWith('@') ? channelUsername : `@${channelUsername}`;
-
-    const url = `${TELEGRAM_API}/getChatMember?chat_id=${chatId}&user_id=${userId}`;
-
-    try {
-        const response = await fetch(url);
-        const result = await response.json();
-
-        if (result.ok) {
-            const status = result.result.status;
-            // Statuses that count as a member
-            return ['member', 'administrator', 'creator'].includes(status);
-        } else {
-            // The user might not exist in the chat, or the bot is not admin.
-            // If the error is 'User not found', it means they are not a member.
-            // For channels/groups, bot must be an administrator to use getChatMember.
-            console.error("Telegram API Error:", result.description);
-            // Assuming failure to check also means they are not confirmed as a member.
-            return false;
-        }
-    } catch (e) {
-        console.error("Fetch Error:", e);
-        return false;
+    // Check if user is a member of the channel
+    const response = await fetch(
+      `https://api.telegram.org/bot${BOT_TOKEN}/getChatMember?chat_id=${CHANNEL_USERNAME}&user_id=${userId}`
+    );
+    
+    const data = await response.json();
+    
+    if (data.ok) {
+      const status = data.result.status;
+      const isMember = ['member', 'administrator', 'creator'].includes(status);
+      
+      return res.status(200).json({ 
+        isMember,
+        status,
+        channel: CHANNEL_USERNAME
+      });
+    } else {
+      return res.status(500).json({ error: 'Failed to check membership status' });
     }
-}
-
-// --- Vercel Serverless Function Handler ---
-module.exports = async (req, res) => {
-    // 1. Only allow POST requests
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
-    }
-
-    let body;
-    try {
-        body = req.body;
-    } catch (e) {
-        return res.status(400).json({ error: 'Invalid JSON body' });
-    }
-
-    const { user_id, channel_username } = body;
-    const initData = req.headers['x-telegram-init-data'];
-
-    // 2. Critical Security Check: Validate initData
-    if (!initData || !validateInitData(initData)) {
-        return res.status(403).json({ error: 'Forbidden: Invalid Telegram initData' });
-    }
-
-    if (!user_id || !channel_username) {
-        return res.status(400).json({ error: 'Missing user_id or channel_username in body' });
-    }
-
-    // 3. Perform Membership Check
-    const isMember = await checkMembership(channel_username, user_id);
-
-    // 4. Send Result
-    res.setHeader('Content-Type', 'application/json');
-    res.status(200).json({ is_member: isMember });
+  } catch (error) {
+    console.error('Error checking membership:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 };
