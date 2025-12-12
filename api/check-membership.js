@@ -3,7 +3,7 @@ const { Telegraf } = require('telegraf');
 const fetch = require('node-fetch');
 
 // Replace with your bot token and channel username
-const BOT_TOKEN = '8262401976:AAGh3XZ1HDrzRn25xr9yZNJrp04LqfQ2WJE';
+const BOT_TOKEN = 'your_bot_token';
 const CHANNEL_USERNAME = '@MesobEarn';
 
 module.exports = async (req, res) => {
